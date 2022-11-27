@@ -37,6 +37,7 @@ rendezvousIP: 192.168.111.80
 hosts:
   - hostname: control-0.example.org
     role: master
+    installerArgs: '["--append-karg", "ip=192.0.2.2::192.0.2.254:255.255.255.0:core0.example.com:enp1s0:none", "--save-partindex", "1", "-n"]'
     rootDeviceHints:
       deviceName: "/dev/sda"
       hctl: "hctl-value"
@@ -67,6 +68,7 @@ rendezvousIP: 192.168.111.80
 hosts:
   - hostname: control-0.example.org
     role: master
+    installerArgs: '["--append-karg", "ip=192.0.2.2::192.0.2.254:255.255.255.0:core0.example.com:enp1s0:none", "--save-partindex", "1", "-n"]'
     rootDeviceHints:
         deviceName: "/dev/sda"
         hctl: "hctl-value"
@@ -316,6 +318,22 @@ rendezvousIP: not-a-valid-ip`,
 			expectedFound: false,
 			expectedError: "invalid Agent Config configuration: rendezvousIP: Invalid value: \"not-a-valid-ip\": \"not-a-valid-ip\" is not a valid IP",
 		},
+
+		{
+			name: "invalid-installerargs",
+			data: `
+apiVersion: v1alpha1
+metadata:
+  name: agent-config-cluster0
+rendezvousIP: 192.168.111.80
+hosts:
+  - installerArgs: '["foo" "bar"]'
+    interfaces:
+      - name: enp3s1
+        macAddress: 28:d2:44:d2:b2:1a`,
+			expectedFound: false,
+			expectedError: "invalid Agent Config configuration: Hosts[0].Host: Forbidden: failed to parse installerArgs",
+		},
 		{
 			name: "invalid-additionalNTPSourceDomain",
 			data: `
@@ -496,6 +514,7 @@ func defaultAgentHost(name string) *AgentHostBuilder {
 			iface("enp3s1", "28:d2:44:d2:b2:1a"),
 		).
 		defaultRootDeviceHints().
+		defaultInstallerArgs().
 		networkConfig("interfaces:")
 }
 
@@ -542,6 +561,11 @@ func (ahb *AgentHostBuilder) defaultRootDeviceHints() *AgentHostBuilder {
 		WWN:              "wwn-value",
 		Rotational:       &falseBool,
 	}
+	return ahb
+}
+
+func (ahb *AgentHostBuilder) defaultInstallerArgs() *AgentHostBuilder {
+	ahb.Host.InstallerArgs = "[\"--append-karg\", \"ip=192.0.2.2::192.0.2.254:255.255.255.0:core0.example.com:enp1s0:none\", \"--save-partindex\", \"1\", \"-n\"]"
 	return ahb
 }
 
