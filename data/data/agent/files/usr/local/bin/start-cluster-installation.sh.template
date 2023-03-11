@@ -67,6 +67,49 @@ if [[ "${APIVIP}" != "" ]]; then
     fi
 fi
 
+# Prepare installation disk's ignition override
+IGNITION_CONFIG=/tmp/config.ign
+/usr/local/bin/butane --pretty --strict -d /usr/local/bin << EOF > $IGNITION_CONFIG
+variant: fcos
+version: 1.3.0
+storage:
+  files:
+    - path: /usr/local/bin/start-local-registry.sh
+      contents:
+        local: start-local-registry.sh
+      mode: 365
+systemd:
+  units:
+  - name: local-registry.service
+    enabled: true
+    contents: |
+      [Unit]
+      Description=Local Registry
+      Wants=network.target network.service NetworkManager-wait-online.service
+      [Service]
+      ExecStart=/usr/local/bin/start-local-registry.sh
+      Type=oneshot
+      [Install]
+      WantedBy=multi-user.target
+EOF
+ignition=$(cat $IGNITION_CONFIG | jq -c | jq --raw-input)
+
+agentdata_path=$(udevadm info /dev/disk/by-label/agentdata | grep ID_PATH= | cut -d "=" -f2)
+agentdata_disk="/dev/disk/by-path/${agentdata_path}"
+host_ids=$(curl -s -S "${BASE_URL}/infra-envs/${INFRA_ENV_ID}/hosts" | jq -r .[].id)
+if [[ -n ${host_ids} ]]; then
+    for id in ${host_ids}; do
+        curl -s -S -X PATCH "${BASE_URL}/infra-envs/${INFRA_ENV_ID}/hosts/${id}" \
+            -H "Content-Type: application/json" \
+            -d '{"disks_skip_formatting": [{"disk_id":"'${agentdata_disk}'","skip_formatting":true}]}'
+
+        # Update host's ingition (used when booting from the installtion disk)
+        curl -s -S -X PATCH "${BASE_URL}/infra-envs/${INFRA_ENV_ID}/hosts/${id}/ignition" \
+            -H "Content-Type: application/json" \
+            -d '{"config": '"${ignition}"'}'
+    done
+fi
+
 while [[ "${cluster_status}" != "installed" ]]
 do
     sleep 5

@@ -230,6 +230,7 @@ func (a *Ignition) Generate(dependencies asset.Parents) error {
 		"node-zero.service",
 		"multipathd.service",
 		"selinux.service",
+		"local-registry.service",
 		"set-hostname.service",
 		"start-cluster-installation.service",
 		"install-status.service",
